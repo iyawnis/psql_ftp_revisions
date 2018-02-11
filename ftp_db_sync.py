@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import shutil
 import os
+import logging
 import psycopg2
 from psycopg2 import extras
 from io import BytesIO
@@ -15,10 +16,10 @@ from collections import namedtuple
 # ********  CONFIGURATION VARIABLES ************
 # ********************************************** #
 
-FTP_HOST='192.168.0.15'
-FTP_USER='pi'
-FTP_PASSWD='raspberry'
-FTP_DIR='FTP'
+FTP_HOST = '192.168.0.15'
+FTP_USER = 'pi'
+FTP_PASSWD = 'raspberry'
+FTP_DIR = 'FTP'
 
 conn_config = {
     'host': 'localhost',
@@ -29,6 +30,7 @@ conn_config = {
 PDF_COMMAND = ['ps2pdf', '-dPDFSETTINGS=/ebook']
 TEMP_DIR = 'temp_files'
 
+logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s', level=logging.INFO)
 
 # ********************************************** #
 # ********************************************** #
@@ -114,7 +116,7 @@ class FileSync(object):
     @staticmethod
     def execute_sql(sql, params):
         with psycopg2.connect(**conn_config) as conn:
-             with conn.cursor() as cursor:
+            with conn.cursor() as cursor:
                 cursor.execute(sql, (params,))
                 return cursor.fetchall()
 
@@ -124,15 +126,18 @@ class FileSync(object):
 
     def get_ftp_file_names(self):
         """
-        Find the files that we have in FTP, and create a dict with item_name to file mapping
+        Find the files that we have in FTP,
+        and create a dict with item_name to file mapping
         """
         with FTP(host=FTP_HOST, user=FTP_USER, passwd=FTP_PASSWD) as ftp:
             files = ftp.nlst(FTP_DIR)
-            self.file_dict = {self.file_name_to_item(file_name): file_name for file_name in files}
+            self.file_dict = {
+                self.file_name_to_item(file_name): file_name
+                for file_name in files}
             return self.file_dict.keys()
 
     @staticmethod
-    def get_db_item_names() -> List[Tuple[str, str,]]:
+    def get_db_item_names() -> List[Tuple[str, str]]:
         SQL = """SELECT item.item_id, item.item_number FROM item;"""
         return [row for row in FileSync.execute_sql(SQL, None)]
 
@@ -153,9 +158,13 @@ class FileSync(object):
         If a file exists, with file_title same as the ftp file name, then no action required.
         """
 
-        file_already_uploaded_sql = """SELECT file.file_title FROM file WHERE file_title in %s;"""
+        file_already_uploaded_sql = """
+            SELECT file.file_title FROM file WHERE file_title in %s;
+        """
         # uploaded files always will be PDF, regardless of original format
-        files_with_pdf_suffix = [str(Path(file).with_suffix('.pdf')) for file in self.file_dict.values()]
+        files_with_pdf_suffix = [
+            str(Path(file).with_suffix('.pdf'))
+            for file in self.file_dict.values()]
         uploaded_files = self.execute_sql(file_already_uploaded_sql, tuple(files_with_pdf_suffix))
 
         # we have all already uploaded these files, remove them from the ftp file dict
@@ -166,7 +175,9 @@ class FileSync(object):
         """
         Find which files have newer versions in FTP, and upload them
         """
-        files_with_existing_versions = """SELECT file.file_id, file.file_title FROM file WHERE file_title SIMILAR TO %s;"""
+        files_with_existing_versions = """
+            SELECT file.file_id, file.file_title FROM file WHERE file_title SIMILAR TO %s;
+        """
         files_from_ftp = '|'.join(sorted(self.file_dict.keys()))
         query_filter = "({})%".format(files_from_ftp)
 
@@ -175,8 +186,7 @@ class FileSync(object):
         for file_id, file_name in files_with_versions_uploaded:
             item_number = self.file_name_to_item(file_name)
             if item_number not in self.file_dict:
-                print('File not matching naming scheme, ignoring (%s)' % item_number)
-                print(self.file_dict)
+                logging.info('File not matching naming scheme, ignoring (%s)' % item_number)
                 continue
             # remove the file from file_dict, as it's either updated, or older version
             ftp_file_name = self.file_dict.pop(item_number)
@@ -217,8 +227,8 @@ class FileSync(object):
         source_path = temp_path(filename)
         new_filename = str(Path(filename).with_suffix('.pdf'))
         dest_path = temp_path(new_filename)
-        call(PDF_COMMAND + [source_path, dest_path])
-        with open(dest_path, 'rb') as fin:
+        # call(PDF_COMMAND + [source_path, dest_path])
+        with open(source_path, 'rb') as fin:
             return new_filename, BytesIO(fin.read())
 
     def update_existing_files(self, files: List[File]):
@@ -248,7 +258,10 @@ class FileSync(object):
             if Path(file_title).suffix != '.pdf':
                 self.store_stream_as_file(file_title, file_stream)
                 file_title, file_stream = self.transform_file(file_title)
-            transformed_files.append(File(file_id=update.file_id, file_title=file_title, file_stream=psycopg2.Binary(file_stream.read())))
+            transformed_files.append(File(
+                file_id=update.file_id,
+                file_title=file_title,
+                file_stream=psycopg2.Binary(file_stream.read())))
         return self.update_existing_files(transformed_files)
 
     def insert_new_files(self, files: List[NewFile]) -> List[NewFile]:
@@ -283,7 +296,6 @@ class FileSync(object):
                 with conn.cursor() as cursor:
                     extras.execute_values(cursor, sql_docass, [file.docass() for file in file_batch])
 
-
     def process_new_files(self, files: List[NewUpload]):
         """
         New files that don't exist in the system. Need to create LS and Docass entries and link them
@@ -296,27 +308,31 @@ class FileSync(object):
                 self.store_stream_as_file(file_title, file_stream)
                 file_title, file_stream = self.transform_file(file_title)
             transformed_files.append(
-                NewFile(file_title=file_title, file_stream=psycopg2.Binary(file_stream.read()), item_id=file.item_id)
+                NewFile(
+                    file_title=file_title,
+                    file_stream=psycopg2.Binary(file_stream.read()),
+                    item_id=file.item_id)
             )
         inserted_files = self.insert_new_files(transformed_files)
         self.link_new_files(inserted_files)
 
     def main(self):
+        logging.info('Begin file sync')
         self.cleanup()
         self.get_ftp_file_names()
         items_in_db = self.get_db_item_names()
 
-        #only work with ftp items that have db records
+        # only work with ftp items that have db records
         ftp_items = self.filter_ftp_dir_items(items_in_db)
         self.filter_ftp_items_already_stored()
         if bool(self.file_dict) is False:
-            print('No files matches for upload')
+            logging.info('No files matches for upload')
             return
         files_to_update = self.files_to_be_updated()
         items_mapping = {i[1]: i[0] for i in items_in_db}
         files_to_create = self.files_not_in_system(items_mapping)
-        print('Files to update:', len(files_to_update))
-        print('Files to create:', len(files_to_create))
+        logging.info('Files to update: {}'.format([file.file_name for file in files_to_update]))
+        logging.info('Files to create: {}'.format([file.file_name for file in files_to_create]))
         self.process_updates(files_to_update)
         self.process_new_files(files_to_create)
         self.cleanup()
@@ -325,4 +341,3 @@ class FileSync(object):
 if __name__ == "__main__":
     process = FileSync()
     process.main()
-

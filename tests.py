@@ -39,7 +39,7 @@ class TestCase(unittest.TestCase):
         }
         sync.filter_ftp_items_already_stored()
         mock_sql.assert_called_with(
-            'SELECT file.file_title FROM file WHERE file_title in %s;',
+            '\n            SELECT file.file_title FROM file WHERE file_title in %s;\n        ',
             ('item1_1.pdf',)
         )
         self.assertEqual(sync.file_dict, {})
@@ -54,7 +54,7 @@ class TestCase(unittest.TestCase):
         sync.filter_ftp_items_already_stored()
         self.assertEqual(sync.file_dict, {'item1': 'item1_1.txt'})
         mock_sql.assert_called_with(
-            'SELECT file.file_title FROM file WHERE file_title in %s;',
+            '\n            SELECT file.file_title FROM file WHERE file_title in %s;\n        ',
             ('item1_1.pdf',)
         )
 
@@ -70,7 +70,7 @@ class TestCase(unittest.TestCase):
         sync.files_to_be_updated()
         mock_sql.assert_called_with(
 
-            'SELECT file.file_id, file.file_title FROM file WHERE file_title SIMILAR TO %s;',
+            '\n            SELECT file.file_id, file.file_title FROM file WHERE file_title SIMILAR TO %s;\n        ',
             ('(item1|item2)%')
         )
 
