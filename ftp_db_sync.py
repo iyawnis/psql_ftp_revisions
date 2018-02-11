@@ -30,7 +30,7 @@ LOWRITER_COMMAND = ['lowriter', '--convert-to', 'pdf:writer_pdf_Export']
 PS_COMMAND = ['ps2pdf', '-dPDFSETTINGS=/ebook']
 TEMP_DIR = 'temp_files'
 
-logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s', level=logging.INFO)
+logging.basicConfig(format='%(asctime)s:%(levelname)s: %(message)s', level=logging.INFO)
 
 # ********************************************** #
 # ********************************************** #
@@ -228,7 +228,7 @@ class FileSync(object):
         new_filename = str(Path(filename).with_suffix('.pdf'))
         dest_path = temp_path(new_filename)
         logging.info('Transforming {} to {}'.format(source_path, dest_path))
-        subprocess.call(LOWRITER_COMMAND + [source_path])
+        subprocess.call(LOWRITER_COMMAND + [source_path, '--outdir', TEMP_DIR])
         subprocess.call(PS_COMMAND + [dest_path, dest_path])
         with open(dest_path, 'rb') as fin:
             return new_filename, BytesIO(fin.read())
