@@ -5,7 +5,7 @@ import logging
 import psycopg2
 from psycopg2 import extras
 from io import BytesIO
-from subprocess import call
+import subprocess
 
 from ftplib import FTP
 from pathlib import Path
@@ -26,8 +26,8 @@ conn_config = {
     'dbname': 'postbooks',
 }
 
-
-PDF_COMMAND = ['ps2pdf', '-dPDFSETTINGS=/ebook']
+LOWRITER_COMMAND = ['lowriter', '--convert-to', 'pdf:writer_pdf_Export']
+PS_COMMAND = ['ps2pdf', '-dPDFSETTINGS=/ebook']
 TEMP_DIR = 'temp_files'
 
 logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s', level=logging.INFO)
@@ -227,8 +227,10 @@ class FileSync(object):
         source_path = temp_path(filename)
         new_filename = str(Path(filename).with_suffix('.pdf'))
         dest_path = temp_path(new_filename)
-        # call(PDF_COMMAND + [source_path, dest_path])
-        with open(source_path, 'rb') as fin:
+        logging.info('Transforming {} to {}'.format(source_path, dest_path))
+        subprocess.call(LOWRITER_COMMAND + [source_path])
+        subprocess.call(PS_COMMAND + [dest_path, dest_path])
+        with open(dest_path, 'rb') as fin:
             return new_filename, BytesIO(fin.read())
 
     def update_existing_files(self, files: List[File]):

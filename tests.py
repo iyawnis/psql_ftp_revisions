@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, mock_open, call
 from ftp_db_sync import FileSync, VersionUpdate, NewUpload, is_updated_version, File, NewFile
 from io import BytesIO
 import psycopg2
@@ -167,6 +167,20 @@ class TestCase(unittest.TestCase):
         files = sync.insert_new_files(files)
         for bundle in zip(files, expected):
             self.assertEqual(bundle[0].file_id, bundle[1])
+
+    @patch('ftp_db_sync.open', new_callable=mock_open, read_data=b"data")
+    @patch('ftp_db_sync.subprocess.call')
+    def test_transform_function(self, mock_subprocess, mock_open):
+        mock_subprocess.call.return_value = None
+        expected_call_one = ['lowriter', '--convert-to', 'pdf:writer_pdf_Export', 'temp_files/file.txt']
+        expected_call_two = ['ps2pdf', '-dPDFSETTINGS=/ebook', 'temp_files/file.pdf', 'temp_files/file.pdf']
+        expected_calls = [call(expected_call_one), call(expected_call_two)]
+        sync = FileSync()
+        sync.transform_file('file.txt')
+        self.assertEqual(mock_subprocess.call_count, 2)
+
+        self.assertTrue(mock_subprocess.call_args_list[0], expected_call_one)
+        mock_subprocess.assert_has_calls(expected_calls)
 
 if __name__ == '__main__':
     unittest.main()
