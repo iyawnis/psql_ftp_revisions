@@ -72,8 +72,14 @@ class File(object):
         self.file_title = kwargs['file_title']
         self.file_stream = kwargs['file_stream']
 
-    def to_tuple(self):
-        return self.file_id, self.file_title, self.file_stream
+    def get_description(self):
+        descr = str(Path(self.file_title).stem).split(' ')
+        if len(descr) > 1:
+            return ' '.join(descr[1:])
+        return descr[0]
+
+    def file(self):
+        return self.file_id, self.file_title, self.get_description(), self.file_stream
 
 
 def temp_path(filename):
@@ -239,14 +245,14 @@ class FileSync(object):
         """
         sql = """
             UPDATE file
-            SET file_title=data.title, file_stream=data.stream
-            FROM (VALUES %s) as data(id, title, stream)
+            SET file_title=data.title, file_descrip=data.descr, file_stream=data.stream
+            FROM (VALUES %s) as data(id, title, descr, stream)
             WHERE file_id=data.id;
         """
         for file_batch in chunks(files, 5):
             with psycopg2.connect(**conn_config) as conn:
                 with conn.cursor() as cursor:
-                    extras.execute_values(cursor, sql, [file.to_tuple() for file in file_batch])
+                    extras.execute_values(cursor, sql, [file.file() for file in file_batch])
 
     def process_updates(self, files_to_update: List[VersionUpdate]):
         """

@@ -149,6 +149,7 @@ class TestCase(unittest.TestCase):
         sync = FileSync()
         sync.update_existing_files(files)
         self.assertEqual(mock_extras.call_count, 2)
+        self.assertTrue(False) # add exact calls
 
     @unittest.skip("Not patching properly")
     @patch('ftp_db_sync.psycopg2')
