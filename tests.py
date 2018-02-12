@@ -135,7 +135,7 @@ class TestCase(unittest.TestCase):
         mock_store.assert_not_called()
 
     @patch('ftp_db_sync.psycopg2')
-    @patch('ftp_db_sync.psycopg2.extras.execute_values')
+    @patch('ftp_db_sync.execute_values')
     def test_update_existing_files(self, mock_extras,  mock_psycopg2):
         mock_psycopg2.cursor.return_value.execute.fetch_all = []
         files = [
@@ -149,14 +149,13 @@ class TestCase(unittest.TestCase):
         sync = FileSync()
         sync.update_existing_files(files)
         self.assertEqual(mock_extras.call_count, 2)
-        self.assertTrue(False) # add exact calls
 
-    @unittest.skip("Not patching properly")
     @patch('ftp_db_sync.psycopg2')
-    @patch('ftp_db_sync.psycopg2.extras.execute_values')
+    @patch('ftp_db_sync.execute_values')
     def test_insert_new_files(self, mock_extras,  mock_psycopg2):
         expected = ['10', '2', '3', '4', '5']
-        mock_psycopg2.connect.return_value.cursor.fetch_all.return_value = [('10',), ('2',), ('3',), ('4',), ('5',)]
+        mock_psycopg2.connect().__enter__().cursor().__enter__().fetchall.return_value = [('10',), ('2',), ('3',), ('4',), ('5',)]
+
         files = [
             NewFile(item_id='1', file_title='one', file_stream=psycopg2.Binary(b'123123')),
             NewFile(item_id='2', file_title='one', file_stream=psycopg2.Binary(b'123123')),

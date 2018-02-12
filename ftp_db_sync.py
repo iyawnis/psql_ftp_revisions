@@ -3,7 +3,7 @@ import shutil
 import os
 import logging
 import psycopg2
-from psycopg2 import extras
+from psycopg2.extras import execute_values
 from io import BytesIO
 import subprocess
 
@@ -252,7 +252,7 @@ class FileSync(object):
         for file_batch in chunks(files, 5):
             with psycopg2.connect(**conn_config) as conn:
                 with conn.cursor() as cursor:
-                    extras.execute_values(cursor, sql, [file.file() for file in file_batch])
+                    execute_values(cursor, sql, [file.file() for file in file_batch])
 
     def process_updates(self, files_to_update: List[VersionUpdate]):
         """
@@ -281,11 +281,10 @@ class FileSync(object):
         VALUES %s
         RETURNING file_id;
         """
-
         for file_batch in chunks(files, 5):
             with psycopg2.connect(**conn_config) as conn:
                 with conn.cursor() as cursor:
-                    extras.execute_values(cursor, sql, [file.file() for file in file_batch])
+                    execute_values(cursor, sql, [file.file() for file in file_batch])
                     insert_ids = cursor.fetchall()
                     for bundle in zip(file_batch, list(insert_ids)):
                         bundle[0].file_id = bundle[1][0]
@@ -302,7 +301,7 @@ class FileSync(object):
         for file_batch in chunks(files, 5):
             with psycopg2.connect(**conn_config) as conn:
                 with conn.cursor() as cursor:
-                    extras.execute_values(cursor, sql_docass, [file.docass() for file in file_batch])
+                    execute_values(cursor, sql_docass, [file.docass() for file in file_batch])
 
     def process_new_files(self, files: List[NewUpload]):
         """
