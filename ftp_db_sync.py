@@ -232,11 +232,12 @@ class FileSync(object):
     def transform_file(self, filename):
         source_path = temp_path(filename)
         new_filename = str(Path(filename).with_suffix('.pdf'))
-        dest_path = temp_path(new_filename)
-        logging.info('Transforming {} to {}'.format(source_path, dest_path))
+        lowriter_dest = temp_path(new_filename)
+        ps2pdf_dest = temp_path('small_' + new_filename)
+        logging.info('Transforming {} to {}'.format(source_path, lowriter_dest))
         subprocess.call(LOWRITER_COMMAND + [source_path, '--outdir', TEMP_DIR])
-        subprocess.call(PS_COMMAND + [dest_path, dest_path])
-        with open(dest_path, 'rb') as fin:
+        subprocess.call(PS_COMMAND + [lowriter_dest, ps2pdf_dest])
+        with open(ps2pdf_dest, 'rb') as fin:
             return new_filename, BytesIO(fin.read())
 
     def update_existing_files(self, files: List[File]):

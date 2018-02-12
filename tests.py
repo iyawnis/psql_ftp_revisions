@@ -173,7 +173,7 @@ class TestCase(unittest.TestCase):
     def test_transform_function(self, mock_subprocess, mock_open):
         mock_subprocess.call.return_value = None
         expected_call_one = ['lowriter', '--convert-to', 'pdf:writer_pdf_Export', 'temp_files/file.txt', '--outdir', 'temp_files']
-        expected_call_two = ['ps2pdf', '-dPDFSETTINGS=/ebook', 'temp_files/file.pdf', 'temp_files/file.pdf']
+        expected_call_two = ['ps2pdf', '-dPDFSETTINGS=/ebook', 'temp_files/file.pdf', 'temp_files/small_file.pdf']
         expected_calls = [call(expected_call_one), call(expected_call_two)]
         sync = FileSync()
         sync.transform_file('file.txt')
@@ -181,6 +181,8 @@ class TestCase(unittest.TestCase):
 
         self.assertTrue(mock_subprocess.call_args_list[0], expected_call_one)
         mock_subprocess.assert_has_calls(expected_calls)
+        mock_open.assert_called_with('temp_files/small_file.pdf', 'rb')
+
     def test_file_description(self):
         file = NewFile(file_title='PHKIT_3 some file description.pdf', item_id='1', file_stream='')
         self.assertEqual(file.get_description(), 'some file description')
