@@ -54,10 +54,10 @@ class NewFile(object):
         self.file_stream = kwargs['file_stream']
 
     def get_description(self):
-        descr = Path(self.file_title).stem.split(' ')
+        descr = str(Path(self.file_title).stem).split(' ')
         if len(descr) > 1:
-            return descr[1]
-        return descr
+            return ' '.join(descr[1:])
+        return descr[0]
 
     def file(self):
         return self.file_title, self.file_stream, self.get_description()
