@@ -139,7 +139,7 @@ class FileSync(object):
             files = ftp.nlst(FTP_DIR)
             self.file_dict = {
                 self.file_name_to_item(file_name): file_name
-                for file_name in files}
+                for file_name in files if '.' in file_name}
             return self.file_dict.keys()
 
     @staticmethod
@@ -164,15 +164,15 @@ class FileSync(object):
         If a file exists, with file_title same as the ftp file name, then no action required.
         """
 
-        file_already_uploaded_sql = """
-            SELECT file.file_title FROM file WHERE file_title in %s;
+        sql = """
+            SELECT file.file_title FROM file WHERE file_title SIMILAR TO %s;
         """
-        # uploaded files always will be PDF, regardless of original format
-        files_with_pdf_suffix = [
-            str(Path(file).with_suffix('.pdf'))
+        # uploaded files will be PDF, or on their original format
+        files_without_suffix = [
+            str(Path(file).with_suffix('')) + '%'
             for file in self.file_dict.values()]
-        uploaded_files = self.execute_sql(file_already_uploaded_sql, tuple(files_with_pdf_suffix))
-
+        sql_similar = '|'.join(files_without_suffix)
+        uploaded_files = self.execute_sql(sql, sql_similar)
         # we have all already uploaded these files, remove them from the ftp file dict
         for file_match in uploaded_files:
             self.file_dict.pop(self.file_name_to_item(file_match[0]))
@@ -235,9 +235,13 @@ class FileSync(object):
         lowriter_dest = temp_path(new_filename)
         ps2pdf_dest = temp_path('small_' + new_filename)
         logging.info('Transforming {} to {}'.format(source_path, lowriter_dest))
-        subprocess.call(LOWRITER_COMMAND + [source_path, '--outdir', TEMP_DIR])
-        subprocess.call(PS_COMMAND + [lowriter_dest, ps2pdf_dest])
-        with open(ps2pdf_dest, 'rb') as fin:
+        try:
+            subprocess.call(LOWRITER_COMMAND + [source_path, '--outdir', TEMP_DIR])
+            subprocess.call(PS_COMMAND + [lowriter_dest, ps2pdf_dest])
+            return_file = ps2pdf_dest
+        except Exception as e:
+            return_file = source_path
+        with open(return_file, 'rb') as fin:
             return new_filename, BytesIO(fin.read())
 
     def update_existing_files(self, files: List[File]):

@@ -32,15 +32,16 @@ class TestCase(unittest.TestCase):
 
     @patch.object(FileSync, 'execute_sql')
     def test_filter_ftp_items_already_stored_match(self, mock_sql):
-        mock_sql.return_value = set([('item1_1.pdf',)])
+        mock_sql.return_value = set([('item1_1.pdf',), ('item2_1.pdf',)])
         sync = FileSync()
         sync.file_dict = {
-            'item1': 'item1_1.txt'
+            'item1': 'item1_1.txt',
+            'item2': 'item2_1.txt',
         }
         sync.filter_ftp_items_already_stored()
         mock_sql.assert_called_with(
-            '\n            SELECT file.file_title FROM file WHERE file_title in %s;\n        ',
-            ('item1_1.pdf',)
+            '\n            SELECT file.file_title FROM file WHERE file_title SIMILAR TO %s;\n        ',
+            'item2_1%|item1_1%'
         )
         self.assertEqual(sync.file_dict, {})
 
@@ -54,8 +55,8 @@ class TestCase(unittest.TestCase):
         sync.filter_ftp_items_already_stored()
         self.assertEqual(sync.file_dict, {'item1': 'item1_1.txt'})
         mock_sql.assert_called_with(
-            '\n            SELECT file.file_title FROM file WHERE file_title in %s;\n        ',
-            ('item1_1.pdf',)
+            '\n            SELECT file.file_title FROM file WHERE file_title SIMILAR TO %s;\n        ',
+            'item1_1%'
         )
 
     @patch.object(FileSync, 'execute_sql')
@@ -183,11 +184,30 @@ class TestCase(unittest.TestCase):
         mock_subprocess.assert_has_calls(expected_calls)
         mock_open.assert_called_with('temp_files/small_file.pdf', 'rb')
 
+    @patch('ftp_db_sync.open', new_callable=mock_open, read_data=b"data")
+    @patch('ftp_db_sync.subprocess.call')
+    def test_transform_function_error(self, mock_subprocess, mock_open):
+        mock_subprocess.side_effect = Exception('exception')
+        sync = FileSync()
+        sync.transform_file('file.txt')
+        self.assertEqual(mock_subprocess.call_count, 1)
+
+        mock_open.assert_called_with('temp_files/file.txt', 'rb')
+
     def test_file_description(self):
         file = NewFile(file_title='PHKIT_3 some file description.pdf', item_id='1', file_stream='')
         self.assertEqual(file.get_description(), 'some file description')
 
         file = NewFile(file_title='PHKIT_3.pdf', item_id='1', file_stream='')
         self.assertEqual(file.get_description(), 'PHKIT_3')
+
+    @patch('ftp_db_sync.FTP')
+    def test_get_ftp_file_names(self, mock_ftp):
+        mock_ftp().__enter__().nlst.return_value = ['one', 'two', 'three.txt']
+        sync = FileSync()
+        result = sync.get_ftp_file_names()
+        self.assertEqual(mock_ftp.call_count, 2)
+        self.assertEqual(list(result), ['three.txt'])
+
 if __name__ == '__main__':
     unittest.main()
