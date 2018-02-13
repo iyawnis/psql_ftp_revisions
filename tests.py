@@ -1,4 +1,5 @@
 import unittest
+from collections import OrderedDict
 from unittest.mock import patch, MagicMock, mock_open, call
 from ftp_db_sync import FileSync, VersionUpdate, NewUpload, is_updated_version, File, NewFile
 from io import BytesIO
@@ -34,11 +35,12 @@ class TestCase(unittest.TestCase):
     def test_filter_ftp_items_already_stored_match(self, mock_sql):
         mock_sql.return_value = set([('item1_1.pdf',), ('item2_1.pdf',)])
         sync = FileSync()
-        sync.file_dict = {
+        sync.file_dict = OrderedDict({
             'item1': 'item1_1.txt',
             'item2': 'item2_1.txt',
-        }
+        })
         sync.filter_ftp_items_already_stored()
+        # fix assert so that order
         mock_sql.assert_called_with(
             '\n            SELECT file.file_title FROM file WHERE file_title SIMILAR TO %s;\n        ',
             'item2_1%|item1_1%'
@@ -177,9 +179,9 @@ class TestCase(unittest.TestCase):
         expected_call_two = ['ps2pdf', '-dPDFSETTINGS=/ebook', 'temp_files/file.pdf', 'temp_files/small_file.pdf']
         expected_calls = [call(expected_call_one), call(expected_call_two)]
         sync = FileSync()
-        sync.transform_file('file.txt')
+        result = sync.transform_file('file.txt')
         self.assertEqual(mock_subprocess.call_count, 2)
-
+        self.assertEqual(result[0], 'file.pdf')
         self.assertTrue(mock_subprocess.call_args_list[0], expected_call_one)
         mock_subprocess.assert_has_calls(expected_calls)
         mock_open.assert_called_with('temp_files/small_file.pdf', 'rb')
@@ -189,9 +191,9 @@ class TestCase(unittest.TestCase):
     def test_transform_function_error(self, mock_subprocess, mock_open):
         mock_subprocess.side_effect = Exception('exception')
         sync = FileSync()
-        sync.transform_file('file.txt')
+        result = sync.transform_file('file.txt')
         self.assertEqual(mock_subprocess.call_count, 1)
-
+        self.assertEqual(result[0], 'file.txt')
         mock_open.assert_called_with('temp_files/file.txt', 'rb')
 
     def test_file_description(self):

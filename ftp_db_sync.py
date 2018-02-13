@@ -241,6 +241,7 @@ class FileSync(object):
             return_file = ps2pdf_dest
         except Exception as e:
             return_file = source_path
+            new_filename = filename
         with open(return_file, 'rb') as fin:
             return new_filename, BytesIO(fin.read())
 
