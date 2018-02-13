@@ -223,7 +223,7 @@ class FileSync(object):
             with FTP(host=FTP_HOST, user=FTP_USER, passwd=FTP_PASSWD) as ftp:
                 ftp.retrbinary('RETR {}'.format(ftp_path(filename)), byte_stream.write)
             byte_stream.seek(0)
-            return byte_stream.read()
+            return byte_stream
 
     def store_stream_as_file(self, filename, file_stream):
         with open(temp_path(filename), 'wb') as temp_file:
