@@ -246,7 +246,7 @@ class FileSync(object):
         return_file_path = ps2pdf_dest
         return_file_name = str(PurePath(filename).with_suffix('.pdf'))
         try:
-            logging.info('Transforming {}'.format(source_path))
+            logging.info('Transforming "{}"'.format(source_path))
             subprocess.call(LOWRITER_COMMAND + [str(lowriter_source), '--outdir', TEMP_DIR])
             subprocess.call(PS_COMMAND + [str(lowriter_dest), ps2pdf_dest])
         except Exception as e:
