@@ -35,6 +35,8 @@ class TestCase(unittest.TestCase):
     @patch.object(FileSync, 'execute_sql')
     def test_filter_ftp_items_already_stored_match(self, mock_sql):
         mock_sql.return_value = set([('item1_1.pdf',), ('item2_1.pdf',)])
+        expected_sql = 'SELECT file.file_title FROM file WHERE file_title SIMILAR TO %s;'
+        expected_args = 'item1_1%|item2_1%'
         sync = FileSync()
         sync.file_dict = OrderedDict({
             'item1': 'item1_1.txt',
@@ -42,10 +44,12 @@ class TestCase(unittest.TestCase):
         })
         sync.filter_ftp_items_already_stored()
         # fix assert so that order
-        mock_sql.assert_called_with(
-            '\n            SELECT file.file_title FROM file WHERE file_title SIMILAR TO %s;\n        ',
-            'item2_1%|item1_1%'
-        )
+        sql = mock_sql.call_args_list[0][0][0].strip()
+        args = mock_sql.call_args_list[0][0][1]
+
+        self.assertEqual(expected_sql, sql)
+        self.assertEqual(expected_args, args)
+
         self.assertEqual(sync.file_dict, {})
 
     @patch.object(FileSync, 'execute_sql')
@@ -175,11 +179,12 @@ class TestCase(unittest.TestCase):
     @patch('ftp_db_sync.open', new_callable=mock_open, read_data=b"data")
     @patch('ftp_db_sync.subprocess.call')
     @patch.object(Path, 'is_file')
-    def test_transform_function(self, mock_path, mock_subprocess, mock_open):
+    @patch.object(Path, 'rename')
+    def test_transform_function(self, mock_rename, mock_path, mock_subprocess, mock_open):
         mock_subprocess.call.return_value = None
         mock_path.return_value = True
-        expected_call_one = ['lowriter', '--convert-to', 'pdf:writer_pdf_Export', 'temp_files/file.txt', '--outdir', 'temp_files']
-        expected_call_two = ['ps2pdf', '-dPDFSETTINGS=/ebook', 'temp_files/file.pdf', 'temp_files/small_file.pdf']
+        expected_call_one = ['lowriter', '--convert-to', 'pdf:writer_pdf_Export', 'temp_files/lowriter_in.txt', '--outdir', 'temp_files']
+        expected_call_two = ['ps2pdf', '-dPDFSETTINGS=/ebook', 'temp_files/lowriter_in.pdf', 'temp_files/compressed.pdf']
         expected_calls = [call(expected_call_one), call(expected_call_two)]
         sync = FileSync()
         result = sync.transform_file('file.txt')
@@ -187,16 +192,17 @@ class TestCase(unittest.TestCase):
         self.assertEqual(result[0], 'file.pdf')
         self.assertTrue(mock_subprocess.call_args_list[0], expected_call_one)
         mock_subprocess.assert_has_calls(expected_calls)
-        mock_open.assert_called_with('temp_files/small_file.pdf', 'rb')
+        mock_open.assert_called_with('temp_files/compressed.pdf', 'rb')
 
     @patch('ftp_db_sync.open', new_callable=mock_open, read_data=b"data")
     @patch('ftp_db_sync.subprocess.call')
     @patch.object(Path, 'is_file')
-    def test_transform_function_silent_fail(self, mock_path, mock_subprocess, mock_open):
+    @patch.object(Path, 'rename')
+    def test_transform_function_silent_fail(self, mock_rename, mock_path, mock_subprocess, mock_open):
         mock_subprocess.call.return_value = None
         mock_path.return_value = False
-        expected_call_one = ['lowriter', '--convert-to', 'pdf:writer_pdf_Export', 'temp_files/file.txt', '--outdir', 'temp_files']
-        expected_call_two = ['ps2pdf', '-dPDFSETTINGS=/ebook', 'temp_files/file.pdf', 'temp_files/small_file.pdf']
+        expected_call_one = ['lowriter', '--convert-to', 'pdf:writer_pdf_Export', 'temp_files/lowriter_in.txt', '--outdir', 'temp_files']
+        expected_call_two = ['ps2pdf', '-dPDFSETTINGS=/ebook', 'temp_files/lowriter_in.pdf', 'temp_files/compressed.pdf']
         expected_calls = [call(expected_call_one), call(expected_call_two)]
         sync = FileSync()
         result = sync.transform_file('file.txt')
@@ -204,17 +210,18 @@ class TestCase(unittest.TestCase):
         self.assertEqual(result[0], 'file.txt')
         self.assertTrue(mock_subprocess.call_args_list[0], expected_call_one)
         mock_subprocess.assert_has_calls(expected_calls)
-        mock_open.assert_called_with('temp_files/file.txt', 'rb')
+        mock_open.assert_called_with('temp_files/lowriter_in.txt', 'rb')
 
     @patch('ftp_db_sync.open', new_callable=mock_open, read_data=b"data")
     @patch('ftp_db_sync.subprocess.call')
-    def test_transform_function_error(self, mock_subprocess, mock_open):
+    @patch.object(Path, 'rename')
+    def test_transform_function_error(self, mock_rename, mock_subprocess, mock_open):
         mock_subprocess.side_effect = Exception('exception')
         sync = FileSync()
         result = sync.transform_file('file.txt')
         self.assertEqual(mock_subprocess.call_count, 1)
         self.assertEqual(result[0], 'file.txt')
-        mock_open.assert_called_with('temp_files/file.txt', 'rb')
+        mock_open.assert_called_with('temp_files/lowriter_in.txt', 'rb')
 
     def test_file_description(self):
         file = NewFile(file_title='PHKIT_3 some file description.pdf', item_id='1', file_stream='')
