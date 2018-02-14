@@ -1,9 +1,10 @@
 import unittest
+import psycopg2
 from collections import OrderedDict
+from io import BytesIO
+from pathlib import Path
 from unittest.mock import patch, MagicMock, mock_open, call
 from ftp_db_sync import FileSync, VersionUpdate, NewUpload, is_updated_version, File, NewFile
-from io import BytesIO
-import psycopg2
 
 class TestCase(unittest.TestCase):
 
@@ -173,8 +174,10 @@ class TestCase(unittest.TestCase):
 
     @patch('ftp_db_sync.open', new_callable=mock_open, read_data=b"data")
     @patch('ftp_db_sync.subprocess.call')
-    def test_transform_function(self, mock_subprocess, mock_open):
+    @patch.object(Path, 'is_file')
+    def test_transform_function(self, mock_path, mock_subprocess, mock_open):
         mock_subprocess.call.return_value = None
+        mock_path.return_value = True
         expected_call_one = ['lowriter', '--convert-to', 'pdf:writer_pdf_Export', 'temp_files/file.txt', '--outdir', 'temp_files']
         expected_call_two = ['ps2pdf', '-dPDFSETTINGS=/ebook', 'temp_files/file.pdf', 'temp_files/small_file.pdf']
         expected_calls = [call(expected_call_one), call(expected_call_two)]
@@ -185,6 +188,23 @@ class TestCase(unittest.TestCase):
         self.assertTrue(mock_subprocess.call_args_list[0], expected_call_one)
         mock_subprocess.assert_has_calls(expected_calls)
         mock_open.assert_called_with('temp_files/small_file.pdf', 'rb')
+
+    @patch('ftp_db_sync.open', new_callable=mock_open, read_data=b"data")
+    @patch('ftp_db_sync.subprocess.call')
+    @patch.object(Path, 'is_file')
+    def test_transform_function_silent_fail(self, mock_path, mock_subprocess, mock_open):
+        mock_subprocess.call.return_value = None
+        mock_path.return_value = False
+        expected_call_one = ['lowriter', '--convert-to', 'pdf:writer_pdf_Export', 'temp_files/file.txt', '--outdir', 'temp_files']
+        expected_call_two = ['ps2pdf', '-dPDFSETTINGS=/ebook', 'temp_files/file.pdf', 'temp_files/small_file.pdf']
+        expected_calls = [call(expected_call_one), call(expected_call_two)]
+        sync = FileSync()
+        result = sync.transform_file('file.txt')
+        self.assertEqual(mock_subprocess.call_count, 2)
+        self.assertEqual(result[0], 'file.txt')
+        self.assertTrue(mock_subprocess.call_args_list[0], expected_call_one)
+        mock_subprocess.assert_has_calls(expected_calls)
+        mock_open.assert_called_with('temp_files/file.txt', 'rb')
 
     @patch('ftp_db_sync.open', new_callable=mock_open, read_data=b"data")
     @patch('ftp_db_sync.subprocess.call')

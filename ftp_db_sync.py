@@ -234,16 +234,21 @@ class FileSync(object):
         new_filename = str(Path(filename).with_suffix('.pdf'))
         lowriter_dest = temp_path(new_filename)
         ps2pdf_dest = temp_path('small_' + new_filename)
-        logging.info('Transforming {} to {}'.format(source_path, lowriter_dest))
+        return_file_path = ps2pdf_dest
+        return_file_name = new_filename
         try:
+            logging.info('Transforming {} to {}'.format(source_path, lowriter_dest))
             subprocess.call(LOWRITER_COMMAND + [source_path, '--outdir', TEMP_DIR])
             subprocess.call(PS_COMMAND + [lowriter_dest, ps2pdf_dest])
-            return_file = ps2pdf_dest
         except Exception as e:
-            return_file = source_path
-            new_filename = filename
-        with open(return_file, 'rb') as fin:
-            return new_filename, BytesIO(fin.read())
+            pass
+        finally:
+            if not Path(return_file_path).is_file():
+                # commands failed
+                return_file_path = source_path
+                return_file_name = filename
+        with open(return_file_path, 'rb') as fin:
+            return return_file_name, BytesIO(fin.read())
 
     def update_existing_files(self, files: List[File]):
         """
